@@ -1,0 +1,14 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`track-title builders remain unchanged (regression lock) > inception_muxed metadata fields 1`] = `
+{
+  "audioTitles": [
+    "Hindi / DDP 5.1 / 48 kHz",
+    "English / DDP 5.1 / 48 kHz",
+  ],
+  "videoTitleText": "Inception (2018)",
+  "videoTitles": [
+    "1080p / BluRay / AVC",
+  ],
+}
+`;
