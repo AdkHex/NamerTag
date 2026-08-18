@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileText, Info, Palette, Settings } from 'lucide-react'
+import { FileText, Info, Palette, Settings, Tags } from 'lucide-react'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -29,8 +29,9 @@ import { GeneralPane } from './panes/GeneralPane'
 import { AppearancePane } from './panes/AppearancePane'
 import { AboutPane } from './panes/AboutPane'
 import { NamingPane } from './panes/NamingPane'
+import { MetadataPane } from './panes/MetadataPane'
 
-type PreferencePane = 'general' | 'naming' | 'appearance' | 'about'
+type PreferencePane = 'general' | 'naming' | 'metadata' | 'appearance' | 'about'
 
 const navigationItems = [
   {
@@ -42,6 +43,11 @@ const navigationItems = [
     id: 'naming' as const,
     name: 'Naming',
     icon: FileText,
+  },
+  {
+    id: 'metadata' as const,
+    name: 'Metadata',
+    icon: Tags,
   },
   {
     id: 'appearance' as const,
@@ -61,6 +67,8 @@ const getPaneTitle = (pane: PreferencePane): string => {
       return 'General'
     case 'naming':
       return 'Naming'
+    case 'metadata':
+      return 'Metadata'
     case 'appearance':
       return 'Appearance'
     case 'about':
@@ -135,6 +143,7 @@ export function PreferencesDialog() {
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pt-0 max-h-[calc(600px-4rem)]">
               {activePane === 'general' && <GeneralPane />}
               {activePane === 'naming' && <NamingPane />}
+              {activePane === 'metadata' && <MetadataPane />}
               {activePane === 'appearance' && <AppearancePane />}
               {activePane === 'about' && <AboutPane />}
             </div>

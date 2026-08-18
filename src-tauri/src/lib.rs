@@ -147,6 +147,13 @@ pub struct AppPreferences {
     pub language_overrides: std::collections::HashMap<String, String>,
     #[serde(default)]
     pub general_metadata: GeneralMetadata,
+    /// Extra Actions field definitions. Empty means "use the built-in defaults", which the
+    /// frontend supplies, so older preference files keep working untouched.
+    #[serde(default)]
+    pub metadata_fields: Vec<MetadataField>,
+    /// Field id -> entered value.
+    #[serde(default)]
+    pub metadata_values: std::collections::HashMap<String, String>,
 }
 
 /// Shared "Extra Actions" metadata values written into a file's general/segment info. Persisted
@@ -160,6 +167,22 @@ pub struct GeneralMetadata {
     pub website: String,
     pub encoded_by: String,
     pub telegram: String,
+}
+
+/// A user-configurable "Extra Actions" field. Labels are editable and fields can be hidden
+/// or added, so the set is stored as data rather than fixed struct members.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct MetadataField {
+    pub id: String,
+    pub label: String,
+    /// "writing-application" | "muxing-application" | "tag"
+    pub target: String,
+    pub tag_name: String,
+    pub enabled: bool,
+    pub placeholder: String,
+    pub built_in: bool,
 }
 
 impl Default for AppPreferences {
@@ -187,6 +210,8 @@ impl Default for AppPreferences {
             audio_codec_overrides: std::collections::HashMap::new(),
             language_overrides: std::collections::HashMap::new(),
             general_metadata: GeneralMetadata::default(),
+            metadata_fields: Vec::new(),
+            metadata_values: std::collections::HashMap::new(),
         }
     }
 }
@@ -2218,10 +2243,27 @@ async fn retag_media_files(items: Vec<RetagRequest>) -> Vec<RetagResult> {
     results
 }
 
+/// One resolved field to write: where it goes and what value it carries. The frontend
+/// resolves labels/visibility, so the backend only sees enabled, non-empty entries.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GeneralMetadataEntry {
+    /// "writing-application" | "muxing-application" | "tag"
+    target: String,
+    /// Global-tag name when target is "tag".
+    #[serde(default)]
+    tag_name: String,
+    value: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GeneralMetadataRequest {
     path: String,
+    /// Generic field list. Preferred over the legacy named fields below.
+    #[serde(default)]
+    entries: Vec<GeneralMetadataEntry>,
+    // --- Legacy named fields, still accepted so an older cached payload keeps working. ---
     #[serde(default)]
     writing_application: String,
     #[serde(default)]
@@ -2232,6 +2274,64 @@ struct GeneralMetadataRequest {
     encoded_by: String,
     #[serde(default)]
     telegram: String,
+}
+
+impl GeneralMetadataRequest {
+    /// Collapse the request into (writing_application, muxing_application, tags).
+    /// Falls back to the legacy named fields when no generic entries were sent.
+    fn resolve(&self) -> (String, String, Vec<(String, String)>) {
+        if self.entries.is_empty() {
+            let mut tags = Vec::new();
+            for (name, value) in [
+                ("WEBSITE", &self.website),
+                ("ENCODED_BY", &self.encoded_by),
+                ("TELEGRAM", &self.telegram),
+            ] {
+                let trimmed = value.trim();
+                if !trimmed.is_empty() {
+                    tags.push((name.to_string(), trimmed.to_string()));
+                }
+            }
+            return (
+                self.writing_application.trim().to_string(),
+                self.muxing_application.trim().to_string(),
+                tags,
+            );
+        }
+
+        let mut writing = String::new();
+        let mut muxing = String::new();
+        let mut tags: Vec<(String, String)> = Vec::new();
+        for entry in &self.entries {
+            let value = entry.value.trim();
+            if value.is_empty() {
+                continue;
+            }
+            match entry.target.as_str() {
+                "writing-application" => writing = value.to_string(),
+                "muxing-application" => muxing = value.to_string(),
+                _ => {
+                    let name = sanitize_tag_name(&entry.tag_name);
+                    if !name.is_empty() {
+                        tags.push((name, value.to_string()));
+                    }
+                }
+            }
+        }
+        (writing, muxing, tags)
+    }
+}
+
+/// Normalize a global-tag name to the Matroska convention (A-Z, 0-9, underscore). Mirrors
+/// `toTagName` in the frontend so a custom field writes the same key it displays.
+fn sanitize_tag_name(value: &str) -> String {
+    let upper: String = value
+        .trim()
+        .to_uppercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    upper.trim_matches('_').to_string()
 }
 
 /// Escape the five XML predefined entities so user values can never break the tags document.
@@ -2274,22 +2374,15 @@ async fn write_general_metadata(items: Vec<GeneralMetadataRequest>) -> Vec<Retag
     cleanup_stale_artifacts_for_paths(items.iter().map(|item| item.path.as_str()));
 
     for item in items {
-        let writing = item.writing_application.trim();
-        let muxing = item.muxing_application.trim();
-        let website = item.website.trim();
-        let encoded_by = item.encoded_by.trim();
-        let telegram = item.telegram.trim();
-
-        let mut tags: Vec<(&str, &str)> = Vec::new();
-        if !website.is_empty() {
-            tags.push(("WEBSITE", website));
-        }
-        if !encoded_by.is_empty() {
-            tags.push(("ENCODED_BY", encoded_by));
-        }
-        if !telegram.is_empty() {
-            tags.push(("TELEGRAM", telegram));
-        }
+        // Fields are user-configurable, so the destination comes from the request rather
+        // than a fixed set of struct members.
+        let (writing_owned, muxing_owned, tags_owned) = item.resolve();
+        let writing = writing_owned.as_str();
+        let muxing = muxing_owned.as_str();
+        let tags: Vec<(&str, &str)> = tags_owned
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_str()))
+            .collect();
 
         if writing.is_empty() && muxing.is_empty() && tags.is_empty() {
             results.push(RetagResult {
@@ -2394,13 +2487,10 @@ async fn write_general_metadata(items: Vec<GeneralMetadataRequest>) -> Vec<Retag
             // Non-MKV containers (MP4/MOV/…) don't carry the MKV-only
             // writing_application/muxing_application keys. Fold the writing application into
             // the portable `encoder` metadata key (ffmpeg writes this into MP4/MOV/etc.) and
-            // drop muxing_application — there is no portable equivalent.
-            let metadata: [(&str, &str); 4] = [
-                ("encoder", writing),
-                ("WEBSITE", website),
-                ("ENCODED_BY", encoded_by),
-                ("TELEGRAM", telegram),
-            ];
+            // drop muxing_application — there is no portable equivalent. Tag fields (built-in
+            // and user-defined alike) are passed through as -metadata keys.
+            let mut metadata: Vec<(&str, &str)> = vec![("encoder", writing)];
+            metadata.extend(tags.iter().copied());
             for (key, value) in metadata {
                 if value.is_empty() {
                     continue;
@@ -3072,3 +3162,64 @@ mod tests {
     }
 }
 
+
+#[cfg(test)]
+mod metadata_field_tests {
+    use super::*;
+
+    #[test]
+    fn tag_names_are_sanitized_to_matroska_convention() {
+        assert_eq!(sanitize_tag_name("Release Group"), "RELEASE_GROUP");
+        assert_eq!(sanitize_tag_name("  source!  "), "SOURCE");
+        assert_eq!(sanitize_tag_name("4kHDHub.com"), "4KHDHUB_COM");
+        assert_eq!(sanitize_tag_name("---"), "");
+    }
+
+    #[test]
+    fn generic_entries_route_to_the_right_destination() {
+        let req: GeneralMetadataRequest = serde_json::from_value(serde_json::json!({
+            "path": "/m/a.mkv",
+            "entries": [
+                {"target": "writing-application", "tagName": "", "value": "mkvmerge"},
+                {"target": "muxing-application", "tagName": "", "value": "libebml"},
+                {"target": "tag", "tagName": "WEBSITE", "value": "example.com"},
+                {"target": "tag", "tagName": "MY_FIELD", "value": "custom"},
+                {"target": "tag", "tagName": "EMPTY", "value": "   "}
+            ]
+        }))
+        .unwrap();
+        let (writing, muxing, tags) = req.resolve();
+        assert_eq!(writing, "mkvmerge");
+        assert_eq!(muxing, "libebml");
+        // Blank values are dropped so they never clobber existing metadata.
+        assert_eq!(
+            tags,
+            vec![
+                ("WEBSITE".to_string(), "example.com".to_string()),
+                ("MY_FIELD".to_string(), "custom".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn legacy_payload_without_entries_still_works() {
+        // An older cached payload sends the five named fields and no `entries`.
+        let req: GeneralMetadataRequest = serde_json::from_value(serde_json::json!({
+            "path": "/m/a.mkv",
+            "writingApplication": "mkvmerge",
+            "website": "example.com",
+            "telegram": "@handle"
+        }))
+        .unwrap();
+        let (writing, muxing, tags) = req.resolve();
+        assert_eq!(writing, "mkvmerge");
+        assert_eq!(muxing, "");
+        assert_eq!(
+            tags,
+            vec![
+                ("WEBSITE".to_string(), "example.com".to_string()),
+                ("TELEGRAM".to_string(), "@handle".to_string()),
+            ]
+        );
+    }
+}

@@ -151,7 +151,7 @@ export function GeneratedFilenamesPanel() {
           </div>
           <div className="flex items-center gap-2">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Tag
+              Filename tag
             </Label>
             <Select
               value={filenameTag}

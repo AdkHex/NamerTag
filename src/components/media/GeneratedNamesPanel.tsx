@@ -257,7 +257,7 @@ export function GeneratedNamesPanel() {
           </div> */}
           <div className="min-w-[220px] space-y-2">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Tag
+              Track title tag
             </Label>
             <Select
               value={selectedTag}

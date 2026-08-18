@@ -70,13 +70,17 @@ export function TagManager() {
         <div>
           <p className="text-sm font-semibold text-foreground">Tags</p>
           <p className="text-xs text-muted-foreground">
-            Manage preset tags for track titles and filenames.
+            Manage preset tags. The filename tag becomes the group suffix in the
+            on-disk name; the track title tag goes into the embedded titles.
           </p>
         </div>
         <div className="space-y-2">
           <Label className="text-sm font-medium text-foreground">
             Track title tag
           </Label>
+          <p className="text-xs text-muted-foreground">
+            Inner title — “… - Downloaded From &lt;tag&gt;”.
+          </p>
           <Select
             key={`track-${selectedTag}-${tags.length}`}
             defaultValue={selectedTag}
@@ -104,6 +108,9 @@ export function TagManager() {
           <Label className="text-sm font-medium text-foreground">
             Filename tag
           </Label>
+          <p className="text-xs text-muted-foreground">
+            Outer name — the group suffix, “(Group-&lt;tag&gt;)”.
+          </p>
           <Select
             key={`filename-${filenameTag}-${tags.length}`}
             defaultValue={filenameTag}
