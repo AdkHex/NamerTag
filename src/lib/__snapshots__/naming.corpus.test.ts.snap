@@ -1,0 +1,25 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`naming corpus — generated filenames > generates a name for: blade_runner_2049 1`] = `"Blade.Runner.2049.2017.2160p.UHD.BluRay.HDR.English.TrueHD.7.1.Atmos.x265-Group"`;
+
+exports[`naming corpus — generated filenames > generates a name for: dts_hd_ma 1`] = `"The.Movie.2018.1080p.BluRay.English.DTS-HD.MA.7.1.x264-Group"`;
+
+exports[`naming corpus — generated filenames > generates a name for: her 1`] = `"Her.2013.1080p.BluRay.English.AAC.2.0.x264-Group"`;
+
+exports[`naming corpus — generated filenames > generates a name for: hevc_10bit 1`] = `"The Movie (2020) 1080p BluRay 10bit HEVC [Hindi-English DDP 5.1] x265 (Group-Ionicboy)"`;
+
+exports[`naming corpus — generated filenames > generates a name for: inception_muxed 1`] = `"Inception (2018) 1080p BluRay [Hindi-English DDP 5.1] x264 (RaZoR-Ionicboy)"`;
+
+exports[`naming corpus — generated filenames > generates a name for: inception_single 1`] = `"Inception.2018.1080p.BluRay.English.DDP.5.1.x264-RaZoR"`;
+
+exports[`naming corpus — generated filenames > generates a name for: no_group 1`] = `"Inception.2018.1080p.BluRay.English.DDP.5.1.x264"`;
+
+exports[`naming corpus — generated filenames > generates a name for: pcm_audio 1`] = `"Concert.2018.1080p.BluRay.English.PCM.2.0.x264-Group"`;
+
+exports[`naming corpus — generated filenames > generates a name for: uhd_dv 1`] = `"The Movie (2021) 2160p UHD BluRay DoVi HDR [Hindi-English DDP 5.1] x265 (Group-Ionicboy)"`;
+
+exports[`naming corpus — generated filenames > generates a name for: uhd_hdr10 1`] = `"The Movie (2021) 2160p UHD BluRay HDR [Hindi-English DDP 5.1] x265 (Group-Ionicboy)"`;
+
+exports[`naming corpus — generated filenames > generates a name for: untagged_audio 1`] = `"The.Movie.2018.1080p.BluRay.DDP.5.1.x264-Group"`;
+
+exports[`naming corpus — generated filenames > generates a name for: up 1`] = `"Up.2009.1080p.BluRay.English.DDP.5.1.x264-Group"`;
