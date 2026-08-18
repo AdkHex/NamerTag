@@ -1,4 +1,4 @@
-name: 'Release RsKv'
+name: 'Release NamerTag'
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
         type: string
 
 concurrency:
-  group: rskv-release
+  group: namertag-release
   cancel-in-progress: false
 
 env:
@@ -69,9 +69,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name || inputs.version }}
-          releaseName: 'RsKv ${{ github.ref_name || inputs.version }}'
+          releaseName: 'NamerTag ${{ github.ref_name || inputs.version }}'
           releaseBody: |
-            ## 🚀 RsKv ${{ github.ref_name || inputs.version }}
+            ## 🚀 NamerTag ${{ github.ref_name || inputs.version }}
 
             ### Installation Instructions
             - **Windows**: Download the installer (`.msi` or `.exe`) and run it
@@ -141,9 +141,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name || inputs.version }}
-          releaseName: 'RsKv ${{ github.ref_name || inputs.version }}'
+          releaseName: 'NamerTag ${{ github.ref_name || inputs.version }}'
           releaseBody: |
-            ## 🚀 RsKv ${{ github.ref_name || inputs.version }}
+            ## 🚀 NamerTag ${{ github.ref_name || inputs.version }}
 
             ### Installation Instructions
             - **Windows**: Download the installer (`.msi` or `.exe`) and run it
@@ -156,4 +156,4 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
-          args: --bundles msi
+          args: --bundles nsis,msi
