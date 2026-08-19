@@ -700,3 +700,52 @@ describe('inside (embedded) track titles', () => {
     expect(draft.audioTitles[0]).not.toContain('Some Old Label')
   })
 })
+
+describe('SDR token', () => {
+  // Real case: War.Dogs.2016.2160p.BluRay.x265.10bit.SDR.DTS-HD.MA.5.1-SWTYBLZ
+  const warDogs = {
+    path: '/m/War.Dogs.2016.2160p.BluRay.x265.10bit.SDR.DTS-HD.MA.5.1-SWTYBLZ.mkv',
+    videoCodec: 'hevc',
+    height: 2160,
+    transfer: 'bt709',
+    bitDepth: 10,
+    audios: [{ codec: 'dts', channels: 6, lang: 'eng', profile: 'DTS-HD MA' }],
+  }
+
+  it('emits SDR before the bit-depth descriptor at 2160p', () => {
+    const name = buildOnDiskName(makeAnalysis(warDogs), { mode: 'vod' })
+    expect(name).toContain('SDR')
+    expect(name).toMatch(/SDR\.10bit\.HEVC/)
+  })
+
+  it('emits SDR in muxed mode too', () => {
+    const name = buildOnDiskName(makeAnalysis(warDogs), { mode: 'muxed' })
+    expect(name).toMatch(/SDR 10bit HEVC/)
+  })
+
+  it('never emits SDR at 1080p', () => {
+    const name = buildOnDiskName(
+      makeAnalysis({
+        path: '/m/Movie.2020.1080p.BluRay.SDR.x264-G.mkv',
+        videoCodec: 'h264',
+        height: 1080,
+        transfer: 'bt709',
+        audios: [{ codec: 'eac3', channels: 6, lang: 'eng' }],
+      })
+    )
+    expect(name).not.toContain('SDR')
+  })
+
+  it('never emits SDR alongside HDR', () => {
+    const name = buildOnDiskName(makeAnalysis(CORPUS.blade_runner_2049), {
+      mode: 'muxed',
+    })
+    expect(name).toContain('HDR')
+    expect(name).not.toContain('SDR')
+  })
+
+  it('reports SDR in the parsed-token preview', () => {
+    const tokens = previewTokens(makeAnalysis(warDogs))
+    expect(tokens.find(t => t.label === 'HDR')?.value).toBe('SDR')
+  })
+})

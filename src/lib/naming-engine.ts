@@ -38,6 +38,7 @@ export interface ParsedMedia {
   isRemux: boolean
   bitDepth10: boolean
   hdr: string // "DV HDR" | "DoVi HDR" | "HDR10+" | "HDR" | "" (never "SDR")
+  sdr: boolean // confirmed non-HDR at 2160p only; emitted as an explicit "SDR" token
   videoFormat: string // "AVC" | "HEVC" | "AV1" | "VP9" | "XviD" | ""
   videoFinal: string // "x264" | "x265" | "AV1" | "VP9" | ...
   audio: AudioPart[]
@@ -378,7 +379,16 @@ export function toParsedMedia(
   if (video?.hdr.is_dolby_vision) hdr = `${dvStyle} HDR`
   else if (video?.hdr.type === 'hdr10') hdr = 'HDR'
   else if (video?.hdr.type === 'hlg') hdr = 'HDR'
-  // SDR / unknown -> '' (never emitted)
+  // SDR / unknown -> '' (never emitted here; see `sdr` below)
+
+  // SDR is only worth stating at 2160p, where HDR is the expectation — a 1080p SDR file is
+  // unremarkable. Requires a *confirmed* non-HDR stream (`type === 'sdr'`) or an explicit SDR
+  // token in the source name; `type === null` means undetected, which must stay silent so an
+  // unanalysed file never gets falsely stamped SDR.
+  const sdr =
+    resolution === '2160p' &&
+    !hdr &&
+    (video?.hdr.type === 'sdr' || /\bsdr\b/i.test(filename))
 
   // videoFormat stays on the built-in mapping (drives the "10bit HEVC" descriptor);
   // only the final codec token honors the user override.
@@ -469,6 +479,7 @@ export function toParsedMedia(
     isRemux,
     bitDepth10,
     hdr,
+    sdr,
     videoFormat,
     videoFinal,
     audio: orderedAudio,
@@ -548,12 +559,18 @@ export function buildMuxedAudioBlock(audio: AudioPart[]): string {
 }
 
 // HDR / bit-depth descriptor (NOT the REMUX token, NOT the codec — builders place those).
+// SDR occupies the same slot as HDR but, unlike HDR, does not suppress the bit-depth token:
+// "SDR 10bit HEVC" carries strictly more information than either half alone.
 function videoDescriptor(m: ParsedMedia): string {
   if (m.hdr) return m.hdr
-  if (!m.isRemux && m.bitDepth10 && m.videoFormat === 'HEVC')
-    return '10bit HEVC'
-  if (m.bitDepth10) return '10bit'
-  return ''
+  const range = m.sdr ? 'SDR' : ''
+  const depth =
+    !m.isRemux && m.bitDepth10 && m.videoFormat === 'HEVC'
+      ? '10bit HEVC'
+      : m.bitDepth10
+        ? '10bit'
+        : ''
+  return [range, depth].filter(Boolean).join(' ')
 }
 
 export function buildMuxedFilename(m: ParsedMedia): string {
@@ -681,7 +698,7 @@ export function previewTokens(
     { label: 'Year', value: p.year },
     { label: 'Source', value: p.source },
     { label: 'Resolution', value: p.resolution },
-    { label: 'HDR', value: p.hdr },
+    { label: 'HDR', value: p.hdr || (p.sdr ? 'SDR' : '') },
     { label: 'Codec', value: p.isRemux ? p.videoFormat : p.videoFinal },
     { label: 'Audio', value: audio },
     { label: 'Group', value: p.group },
