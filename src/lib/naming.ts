@@ -435,7 +435,7 @@ export function buildGeneratedNameDraft(
   const generatedName = sanitizeFilenameBase(
     stripExtensionFromName(
       buildOnDiskName(analysis, {
-        mode: preferences?.namingMode ?? 'auto',
+        mode: preferences?.namingMode ?? defaultPreferences.namingMode,
         printTypeOverride,
         group,
         ionicSuffix: muxedSuffix,

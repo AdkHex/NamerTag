@@ -217,7 +217,7 @@ impl Default for AppPreferences {
 }
 
 fn default_naming_mode() -> String {
-    "auto".to_string()
+    "muxed".to_string()
 }
 
 fn default_ionic_suffix() -> String {

@@ -29,6 +29,7 @@ import {
   stripExtensionFromName,
 } from '@/lib/naming'
 import {
+  defaultPreferences,
   NO_TAG,
   resolveTag,
   type AppPreferences,
@@ -62,7 +63,7 @@ export function GeneratedFilenamesPanel() {
   const tags = preferences?.tags ?? []
   const printType =
     (preferences?.printTypeOverride as 'BluRay' | 'WEB-DL' | '') || ''
-  const namingMode = preferences?.namingMode || 'auto'
+  const namingMode = preferences?.namingMode || defaultPreferences.namingMode
   const removeYear = preferences?.removeYear ?? false
   const filenameTag = preferences?.filenameTag || '__none__'
   // The selected Filename tag is the muxed suffix; fall back to the default suffix pref.
@@ -145,7 +146,7 @@ export function GeneratedFilenamesPanel() {
               }}
             >
               <SelectTrigger className="h-8 w-40 bg-input text-xs">
-                <SelectValue placeholder="Auto" />
+                <SelectValue placeholder="Muxed (spaces)" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">Auto (detect)</SelectItem>

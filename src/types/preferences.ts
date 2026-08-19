@@ -178,7 +178,7 @@ export const defaultPreferences: AppPreferences = {
     '{title} ({year}) {seasonEpisode} {resolution} {provider} {webType} {bitDepth} {hdr} {videoCodec} [{audioList}] {codecSuffix} ({encoderName} - {filenameTag})',
   encoderName: '',
   printTypeOverride: '',
-  namingMode: 'auto',
+  namingMode: 'muxed',
   ionicSuffix: 'Ionicboy',
   removeYear: false,
   languagePriority: ['hin', 'eng'],

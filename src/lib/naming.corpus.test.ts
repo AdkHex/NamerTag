@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { buildGeneratedNameDraft } from './naming'
 import { CORPUS, makeAnalysis } from './__fixtures__/media-analysis'
+import { defaultPreferences } from '@/types/preferences'
+
+// The corpus exercises auto-detection (VOD for single-audio, muxed otherwise), so it pins
+// the mode explicitly rather than inheriting whatever the app default happens to be —
+// otherwise changing that default silently drops the auto path from coverage.
+const AUTO = { ...defaultPreferences, namingMode: 'auto' as const }
 
 /**
  * Living corpus contract for filename generation.
@@ -13,7 +19,7 @@ import { CORPUS, makeAnalysis } from './__fixtures__/media-analysis'
 describe('naming corpus — generated filenames', () => {
   for (const [name, opt] of Object.entries(CORPUS)) {
     it(`generates a name for: ${name}`, () => {
-      const draft = buildGeneratedNameDraft(makeAnalysis(opt))
+      const draft = buildGeneratedNameDraft(makeAnalysis(opt), AUTO)
       expect(draft.generatedName).toMatchSnapshot()
     })
   }
@@ -21,7 +27,7 @@ describe('naming corpus — generated filenames', () => {
 
 describe('Wave 1 invariants (must hold for every corpus case)', () => {
   for (const [name, opt] of Object.entries(CORPUS)) {
-    const draft = buildGeneratedNameDraft(makeAnalysis(opt))
+    const draft = buildGeneratedNameDraft(makeAnalysis(opt), AUTO)
     const generated = draft.generatedName
 
     it(`${name}: never contains the literal "SDR"`, () => {

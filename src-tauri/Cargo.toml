@@ -1,6 +1,6 @@
 [package]
 name = "rskv"
-version = "1.6.1"
+version = "1.7.0"
 description = "NamerTag"
 authors = ["vo1x"]
 edition = "2021"

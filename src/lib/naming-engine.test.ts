@@ -568,7 +568,12 @@ describe('retag audit regressions', () => {
         { codec: 'dts', channels: 6, lang: 'eng', profile: 'DTS-HD MA' },
       ],
     })
-    const draft = buildGeneratedNameDraft(analysis)
+    // Pinned to auto: this asserts the VOD (dotted) rendering a single-audio file gets
+    // under auto-detection, which the app default ('muxed') would otherwise bypass.
+    const draft = buildGeneratedNameDraft(analysis, {
+      ...defaultPreferences,
+      namingMode: 'auto',
+    })
     expect(draft.audioTitles[0]).toContain('DTS-HD MA')
     // Single-audio files render in VOD (dotted) mode, so spaces become dots.
     expect(draft.generatedName).toContain('DTS-HD.MA')
@@ -801,5 +806,15 @@ describe('NO_TAG (tagging turned off)', () => {
       selectedTag: '',
     })
     expect(draft.audioTitles[0]).toContain('4kHDHub.com')
+  })
+})
+
+describe('default naming mode', () => {
+  it('defaults to muxed, so a single-audio file is not dotted', () => {
+    expect(defaultPreferences.namingMode).toBe('muxed')
+    const draft = buildGeneratedNameDraft(makeAnalysis(CORPUS.up))
+    // Muxed renders with spaces; the auto default would have dotted this single-audio file.
+    expect(draft.generatedName).toContain(' ')
+    expect(draft.generatedName).toMatch(/\(\d{4}\)/)
   })
 })
