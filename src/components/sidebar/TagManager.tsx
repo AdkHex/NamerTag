@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { usePreferences, useSavePreferences } from '@/services/preferences'
+import { NO_TAG } from '@/types/preferences'
 
 export function TagManager() {
   const { data: preferences } = usePreferences()
@@ -36,7 +37,8 @@ export function TagManager() {
   }
 
   const handleDeleteTag = async () => {
-    if (!selectedTag) return
+    // NO_TAG is a mode, not a stored tag — there is nothing to delete.
+    if (!selectedTag || selectedTag === NO_TAG) return
     const nextTags = tags.filter(tag => tag !== selectedTag)
     const nextFilenameTag = nextTags.includes(filenameTag)
       ? filenameTag
@@ -90,6 +92,7 @@ export function TagManager() {
               <SelectValue placeholder="Select tag" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={NO_TAG}>No tag</SelectItem>
               {tags.length === 0 ? (
                 <SelectItem value="__empty__" disabled>
                   No tags yet
@@ -120,6 +123,7 @@ export function TagManager() {
               <SelectValue placeholder="Select tag" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={NO_TAG}>No tag</SelectItem>
               {tags.length === 0 ? (
                 <SelectItem value="__empty__" disabled>
                   No tags yet
@@ -154,7 +158,11 @@ export function TagManager() {
               size="sm"
               variant="ghost"
               onClick={handleDeleteTag}
-              disabled={savePreferences.isPending || !selectedTag}
+              disabled={
+                savePreferences.isPending ||
+                !selectedTag ||
+                selectedTag === NO_TAG
+              }
             >
               Delete
             </Button>

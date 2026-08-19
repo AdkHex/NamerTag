@@ -820,6 +820,11 @@ struct RetagRequest {
     audio_stream_indexes: Vec<i64>,
     #[serde(default)]
     subtitle_stream_indexes: Vec<i64>,
+    /// Delete every existing title instead of setting new ones. Empty titles are normally
+    /// skipped so a blank generated value can't clobber good metadata, which means "clear"
+    /// cannot be expressed by sending empty strings — it needs this explicit opt-in.
+    #[serde(default)]
+    clear_titles: bool,
 }
 
 #[derive(Serialize)]
@@ -2038,6 +2043,32 @@ fn push_track_titles(
 
 fn build_mkvpropedit_args(item: &RetagRequest) -> Vec<String> {
     let mut args = Vec::new();
+
+    // Clear mode: delete the container title and every track name outright. mkvpropedit
+    // has no "set to empty" — `--set name=` is rejected — so removal uses `--delete`.
+    // Track counts come from the stream-index lists, which the caller always populates
+    // from the current analysis, so tracks are addressed by real stream index.
+    if item.clear_titles {
+        args.push("--edit".to_string());
+        args.push("info".to_string());
+        args.push("--delete".to_string());
+        args.push("title".to_string());
+
+        for (kind, indexes) in [
+            ('v', &item.video_stream_indexes),
+            ('a', &item.audio_stream_indexes),
+            ('s', &item.subtitle_stream_indexes),
+        ] {
+            for (position, index) in indexes.iter().enumerate() {
+                args.push("--edit".to_string());
+                args.push(track_selector(kind, position, Some(*index)));
+                args.push("--delete".to_string());
+                args.push("name".to_string());
+            }
+        }
+        return args;
+    }
+
     // Skip empty titles so a blank generated value never clobbers existing metadata.
     if let Some(title) = item.container_title.as_deref() {
         if !title.trim().is_empty() {
@@ -2141,24 +2172,42 @@ async fn retag_media_files(items: Vec<RetagRequest>) -> Vec<RetagResult> {
                 "copy".to_string(),
             ];
 
-            if let Some(title) = item.container_title.as_deref() {
+            if item.clear_titles {
+                // ffmpeg removes a metadata key when it is assigned an empty value, so
+                // clearing is `title=` on the container and on every stream. The per-kind
+                // stream counts come from the caller's current analysis.
                 args.push("-metadata".to_string());
-                args.push(format!("title={}", title.trim()));
-            }
+                args.push("title=".to_string());
+                for (kind, count) in [
+                    ('v', item.video_stream_indexes.len()),
+                    ('a', item.audio_stream_indexes.len()),
+                    ('s', item.subtitle_stream_indexes.len()),
+                ] {
+                    for index in 0..count {
+                        args.push(format!("-metadata:s:{kind}:{index}"));
+                        args.push("title=".to_string());
+                    }
+                }
+            } else {
+                if let Some(title) = item.container_title.as_deref() {
+                    args.push("-metadata".to_string());
+                    args.push(format!("title={}", title.trim()));
+                }
 
-            for (index, title) in item.video_titles.iter().enumerate() {
-                args.push(format!("-metadata:s:v:{index}"));
-                args.push(format!("title={}", title.trim()));
-            }
+                for (index, title) in item.video_titles.iter().enumerate() {
+                    args.push(format!("-metadata:s:v:{index}"));
+                    args.push(format!("title={}", title.trim()));
+                }
 
-            for (index, title) in item.audio_titles.iter().enumerate() {
-                args.push(format!("-metadata:s:a:{index}"));
-                args.push(format!("title={}", title.trim()));
-            }
+                for (index, title) in item.audio_titles.iter().enumerate() {
+                    args.push(format!("-metadata:s:a:{index}"));
+                    args.push(format!("title={}", title.trim()));
+                }
 
-            for (index, title) in item.subtitle_titles.iter().enumerate() {
-                args.push(format!("-metadata:s:s:{index}"));
-                args.push(format!("title={}", title.trim()));
+                for (index, title) in item.subtitle_titles.iter().enumerate() {
+                    args.push(format!("-metadata:s:s:{index}"));
+                    args.push(format!("title={}", title.trim()));
+                }
             }
 
             args.push(temp_output.clone());
@@ -2888,6 +2937,57 @@ mod tests {
             Some("5.1".to_string())
         );
         assert_eq!(get_channel_layout(None, &None), None);
+    }
+
+    #[test]
+    fn clear_titles_deletes_container_and_track_names() {
+        // Clearing cannot be expressed as empty titles (those are skipped so a blank
+        // generated value can't wipe good metadata), so it must emit --delete.
+        let item: RetagRequest = serde_json::from_value(serde_json::json!({
+            "path": "/m/movie.mkv",
+            "containerTitle": "Old Title",
+            "videoTitles": [],
+            "audioTitles": [],
+            "subtitleTitles": [],
+            "videoStreamIndexes": [0],
+            "audioStreamIndexes": [1, 2],
+            "subtitleStreamIndexes": [3],
+            "clearTitles": true,
+        }))
+        .expect("valid retag request");
+
+        let args = build_mkvpropedit_args(&item);
+        assert_eq!(
+            args,
+            vec![
+                "--edit", "info", "--delete", "title", // container title
+                "--edit", "track:@1", "--delete", "name", // video stream 0
+                "--edit", "track:@2", "--delete", "name", // audio stream 1
+                "--edit", "track:@3", "--delete", "name", // audio stream 2
+                "--edit", "track:@4", "--delete", "name", // subtitle stream 3
+            ]
+        );
+        // The stale container title must not be re-set while clearing.
+        assert!(!args.iter().any(|a| a.starts_with("title=")));
+    }
+
+    #[test]
+    fn clear_titles_defaults_to_false_for_older_payloads() {
+        // A cached payload predating the flag must still set titles, not wipe them.
+        let item: RetagRequest = serde_json::from_value(serde_json::json!({
+            "path": "/m/movie.mkv",
+            "containerTitle": "A Title",
+            "videoTitles": [],
+            "audioTitles": ["Hindi / DDP 5.1"],
+            "subtitleTitles": [],
+            "audioStreamIndexes": [1],
+        }))
+        .expect("valid retag request");
+
+        assert!(!item.clear_titles);
+        let args = build_mkvpropedit_args(&item);
+        assert!(args.contains(&"title=A Title".to_string()));
+        assert!(!args.iter().any(|a| a == "--delete"));
     }
 
     #[test]

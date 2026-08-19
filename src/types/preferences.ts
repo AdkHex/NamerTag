@@ -1,5 +1,25 @@
 // Types that match the Rust AppPreferences struct
 // Only contains settings that should be persisted to disk
+
+/**
+ * Sentinel for "deliberately no tag", stored in `selectedTag` / `filenameTag`.
+ *
+ * An empty string cannot express this: the builders fall back to `tags[0]` when the
+ * selection is blank (so a fresh install still tags something), which makes "" mean
+ * "unset" rather than "none". This sentinel is a real, persisted choice that suppresses
+ * the tag everywhere — track titles, the container title, and the filename suffix.
+ */
+export const NO_TAG = '__no_tag__'
+
+/** Resolve a stored tag preference to the text to emit ('' when tagging is off). */
+export function resolveTag(
+  selection: string | undefined,
+  fallback: string | undefined = ''
+): string {
+  if (selection === NO_TAG) return ''
+  return selection?.trim() || fallback.trim()
+}
+
 export interface AppPreferences {
   theme: string
   autoCheckUpdates: boolean

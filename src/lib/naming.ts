@@ -1,4 +1,8 @@
-import { defaultPreferences, type AppPreferences } from '@/types/preferences'
+import {
+  defaultPreferences,
+  resolveTag,
+  type AppPreferences,
+} from '@/types/preferences'
 import type { MediaAnalysis } from '@/types/media-analysis'
 import { getLanguageDisplayName } from '@/lib/language'
 import {
@@ -408,8 +412,7 @@ export function buildGeneratedNameDraft(
 ): GeneratedNameDraft {
   const filename = analysis.general.file.filename || ''
   const path = analysis.general.file.path || filename
-  const trackTag =
-    preferences?.selectedTag?.trim() || preferences?.tags?.[0] || ''
+  const trackTag = resolveTag(preferences?.selectedTag, preferences?.tags?.[0])
   const printTypeOverride = preferences?.printTypeOverride || ''
   const videoTrackTemplate =
     preferences?.videoTrackTemplate || defaultPreferences.videoTrackTemplate
@@ -424,10 +427,11 @@ export function buildGeneratedNameDraft(
   // Original release group (hyphen-delimited only) or the user's encoder override.
   const group = preferences?.encoderName?.trim() || parseReleaseGroup(filename)
   // Muxed suffix: the selected Filename tag wins, then the default suffix preference.
-  const muxedSuffix =
-    preferences?.filenameTag?.trim() ||
-    preferences?.ionicSuffix?.trim() ||
-    defaultPreferences.ionicSuffix
+  // NO_TAG suppresses the suffix entirely rather than falling through to the default.
+  const muxedSuffix = resolveTag(
+    preferences?.filenameTag,
+    preferences?.ionicSuffix?.trim() || defaultPreferences.ionicSuffix
+  )
   const generatedName = sanitizeFilenameBase(
     stripExtensionFromName(
       buildOnDiskName(analysis, {

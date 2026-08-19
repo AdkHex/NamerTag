@@ -14,7 +14,7 @@ import {
 } from './naming-engine'
 import { buildGeneratedNameDraft, classifySubtitle } from './naming'
 import { CORPUS, makeAnalysis } from './__fixtures__/media-analysis'
-import { defaultPreferences } from '@/types/preferences'
+import { defaultPreferences, NO_TAG } from '@/types/preferences'
 
 describe('mappers', () => {
   it('maps video to final codec', () => {
@@ -747,5 +747,59 @@ describe('SDR token', () => {
   it('reports SDR in the parsed-token preview', () => {
     const tokens = previewTokens(makeAnalysis(warDogs))
     expect(tokens.find(t => t.label === 'HDR')?.value).toBe('SDR')
+  })
+})
+
+describe('NO_TAG (tagging turned off)', () => {
+  const analysis = () =>
+    makeAnalysis({
+      path: '/m/Movie.2020.1080p.BluRay.x264-Group.mkv',
+      videoCodec: 'h264',
+      height: 1080,
+      transfer: 'bt709',
+      audios: [{ codec: 'eac3', channels: 6, lang: 'hin', atmos: true }],
+    })
+
+  it('drops the tag from track titles, leaving no trailing separator', () => {
+    const draft = buildGeneratedNameDraft(analysis(), {
+      ...defaultPreferences,
+      tags: ['4kHDHub.com'],
+      selectedTag: NO_TAG,
+    })
+    expect(draft.audioTitles[0]).toBe('Hindi / DDP Atmos 5.1 / 48 kHz')
+    expect(draft.audioTitles[0]).not.toContain('4kHDHub.com')
+    expect(draft.audioTitles[0]?.trim().endsWith('/')).toBe(false)
+  })
+
+  it('drops the "Downloaded From" suffix from the container title', () => {
+    const draft = buildGeneratedNameDraft(analysis(), {
+      ...defaultPreferences,
+      tags: ['4kHDHub.com'],
+      selectedTag: NO_TAG,
+    })
+    expect(draft.videoTitleText).toBe('Movie (2020)')
+    expect(draft.videoTitleText).not.toContain('Downloaded From')
+  })
+
+  it('drops the group suffix from the filename', () => {
+    const draft = buildGeneratedNameDraft(analysis(), {
+      ...defaultPreferences,
+      tags: ['4kHDHub.com'],
+      filenameTag: NO_TAG,
+      namingMode: 'muxed',
+    })
+    expect(draft.generatedName).toContain('(Group)')
+    expect(draft.generatedName).not.toContain('Ionicboy')
+    expect(draft.generatedName).not.toContain('4kHDHub.com')
+  })
+
+  it('still falls back to the first tag when the selection is merely blank', () => {
+    // '' means "unset" (fresh install), which must keep the existing fallback.
+    const draft = buildGeneratedNameDraft(analysis(), {
+      ...defaultPreferences,
+      tags: ['4kHDHub.com'],
+      selectedTag: '',
+    })
+    expect(draft.audioTitles[0]).toContain('4kHDHub.com')
   })
 })

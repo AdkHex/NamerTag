@@ -3,6 +3,16 @@ import { useGeneratedNamesStore } from '@/store/generated-names-store'
 import { useLocalUploadQueue } from '@/store/local-upload-queue-store'
 import { Button } from '@/components/ui/button'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
@@ -20,6 +30,7 @@ import {
 import { cn } from '@/lib/utils'
 import { ChevronDown, Loader2, X } from 'lucide-react'
 import { usePreferences, useSavePreferences } from '@/services/preferences'
+import { NO_TAG } from '@/types/preferences'
 import { useQueueActions } from '@/components/upload/useQueueActions'
 
 interface TrackItem {
@@ -50,8 +61,15 @@ export function GeneratedNamesPanel() {
   )
   const { data: preferences } = usePreferences()
   const savePreferences = useSavePreferences()
-  const { isRetagging, retaggingPath, hasItems, handleGenerate, handleRetag } =
-    useQueueActions()
+  const {
+    isRetagging,
+    retaggingPath,
+    hasItems,
+    handleGenerate,
+    handleRetag,
+    handleClearTitles,
+  } = useQueueActions()
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
 
   const tags = preferences?.tags ?? []
   const selectedTag = preferences?.selectedTag || tags[0] || '__empty__'
@@ -270,6 +288,7 @@ export function GeneratedNamesPanel() {
                 <SelectValue placeholder="Track Title Tag" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={NO_TAG}>No tag</SelectItem>
                 {tags.length === 0 ? (
                   <SelectItem value="__empty__" disabled>
                     No tags yet
@@ -321,6 +340,17 @@ export function GeneratedNamesPanel() {
           </Button>
           <Button
             type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmClearOpen(true)}
+            disabled={!hasItems || isRetagging}
+            className="p-4 border-border/70 bg-input text-white transition-colors hover:bg-destructive/20 hover:text-white"
+            title="Delete the container title and every track name from the queued files"
+          >
+            Remove tags
+          </Button>
+          <Button
+            type="button"
             size="sm"
             onClick={handleRetag}
             disabled={!hasItems || isRetagging}
@@ -332,6 +362,30 @@ export function GeneratedNamesPanel() {
           </Button>
         </div>
       </div>
+      <AlertDialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove all titles?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This deletes the container title and every video, audio and
+              subtitle track name from the {items.length} queued file
+              {items.length === 1 ? '' : 's'}, leaving them empty. It is written
+              straight to disk and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmClearOpen(false)
+                handleClearTitles()
+              }}
+            >
+              Remove tags
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="mt-4">
         <div className="text-sm font-semibold text-foreground">
           Generated Track Titles

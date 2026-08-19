@@ -1,7 +1,7 @@
 {
   "name": "namertag",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.6.0",
   "packageManager": "pnpm@10.25.0",
   "type": "module",
   "author": "Danny Smith",

@@ -255,6 +255,89 @@ export function useQueueActions() {
     }
   }
 
+  /**
+   * Strip every existing title from the queued files: the container title and each track
+   * name. Unlike retagging this needs no generated titles — it removes whatever the file
+   * already carries — but it does need the analysis, because tracks are addressed by their
+   * real stream index.
+   */
+  const handleClearTitles = async () => {
+    if (items.length === 0 || isRetagging) return
+    setIsRetagging(true)
+    setRetagStatus(null)
+
+    const requests = items
+      .map(item => {
+        const analysis = analysesByPath[item.path]
+        if (!analysis) return null
+        return {
+          path: item.path,
+          containerTitle: '',
+          videoTitles: [],
+          audioTitles: [],
+          subtitleTitles: [],
+          videoStreamIndexes: analysis.video.map(s => s.stream_index),
+          audioStreamIndexes: analysis.audio.map(s => s.stream_index),
+          subtitleStreamIndexes: analysis.subtitles.map(s => s.stream_index),
+          clearTitles: true,
+        }
+      })
+      .filter((request): request is NonNullable<typeof request> =>
+        Boolean(request)
+      )
+
+    try {
+      if (requests.length === 0) {
+        toast.error('No cached media info', {
+          description: 'Analyse the files first, then remove their tags.',
+        })
+        return
+      }
+
+      const results: {
+        path: string
+        success: boolean
+        error?: string | null
+      }[] = []
+      for (const request of requests) {
+        setRetaggingPath(request.path)
+        try {
+          const response = await invoke<
+            { path: string; success: boolean; error?: string | null }[]
+          >('retag_media_files', { items: [request] })
+          results.push(
+            response[0] ?? {
+              path: request.path,
+              success: false,
+              error: 'No result returned',
+            }
+          )
+        } catch (error) {
+          results.push({
+            path: request.path,
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+
+      const failed = results.filter(result => !result.success)
+      if (failed.length === 0) {
+        toast.success(`Removed titles from ${results.length} files`)
+      } else {
+        toast.error(`Failed to clear ${failed.length} files`, {
+          description: failed[0]?.error ?? undefined,
+        })
+      }
+      const status = failed.length === 0 ? 'success' : 'error'
+      setRetagStatus(status)
+      setTimeout(() => setRetagStatus(null), 1200)
+    } finally {
+      setRetaggingPath(null)
+      setIsRetagging(false)
+    }
+  }
+
   const handleRenameAll = async () => {
     if (isRenaming || items.length === 0) return
     setIsRenaming(true)
@@ -385,6 +468,7 @@ export function useQueueActions() {
     handleClear: clear,
     handleGenerate,
     handleRetag,
+    handleClearTitles,
     handleRenameAll,
     handleUndoRename,
   }

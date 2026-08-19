@@ -28,7 +28,11 @@ import {
   getPathExtension,
   stripExtensionFromName,
 } from '@/lib/naming'
-import type { AppPreferences } from '@/types/preferences'
+import {
+  NO_TAG,
+  resolveTag,
+  type AppPreferences,
+} from '@/types/preferences'
 
 function buildGeneratedFileName(value: string, extension: string) {
   const base = stripExtensionFromName(value, extension)
@@ -62,10 +66,11 @@ export function GeneratedFilenamesPanel() {
   const removeYear = preferences?.removeYear ?? false
   const filenameTag = preferences?.filenameTag || '__none__'
   // The selected Filename tag is the muxed suffix; fall back to the default suffix pref.
-  const muxedSuffix =
-    preferences?.filenameTag?.trim() ||
-    preferences?.ionicSuffix?.trim() ||
-    'Ionicboy'
+  // NO_TAG means the user turned tagging off, so no fallback applies.
+  const muxedSuffix = resolveTag(
+    preferences?.filenameTag,
+    preferences?.ionicSuffix?.trim() || 'Ionicboy'
+  )
 
   const rows = useMemo(() => {
     const options: NamingOptions = {
@@ -168,6 +173,7 @@ export function GeneratedFilenamesPanel() {
                 <SelectItem value="__none__">
                   Default ({preferences?.ionicSuffix?.trim() || 'Ionicboy'})
                 </SelectItem>
+                <SelectItem value={NO_TAG}>No tag</SelectItem>
                 {tags.map(tag => (
                   <SelectItem key={tag} value={tag}>
                     {tag}
