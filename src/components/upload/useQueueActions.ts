@@ -321,6 +321,22 @@ export function useQueueActions() {
         }
       }
 
+      // Mirror the wipe in the editor so the fields empty out live. Only files that
+      // actually succeeded are blanked — a failed one still holds its titles on disk, and
+      // showing it as empty would misreport what the file contains. setGeneratedTracks
+      // also rebases the dirty baseline, so cleared rows are not flagged as "Modified".
+      for (const result of results) {
+        if (!result.success) continue
+        const analysis = analysesByPath[result.path]
+        setGeneratedTracks(result.path, {
+          videoTitleText: '',
+          videoTitles: (analysis?.video ?? []).map(() => ''),
+          audioTitles: (analysis?.audio ?? []).map(() => ''),
+          subtitleTitles: (analysis?.subtitles ?? []).map(() => ''),
+          encoderName: '',
+        })
+      }
+
       const failed = results.filter(result => !result.success)
       if (failed.length === 0) {
         toast.success(`Removed titles from ${results.length} files`)
