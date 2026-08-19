@@ -4,7 +4,8 @@ name: Build NamerTag
 # build is always available without cutting a release. Pull requests build too, which
 # catches a broken build before it reaches main.
 #
-# Releases are handled separately by release.yml, which runs on version tags.
+# Releases are handled separately by release.yml, which publishes whenever the version in
+# src-tauri/tauri.conf.json changes on main (or on a v* tag / manual dispatch).
 on:
   push:
     branches: [main]
