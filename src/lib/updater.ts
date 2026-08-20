@@ -112,6 +112,10 @@ export async function installUpdate() {
     await pendingUpdate.install()
     pendingUpdate = null
     setUpdateReady(false)
+    // Windows force-exits the process during install() — a documented limitation of
+    // Windows installers, which cannot replace files that are in use. This line is
+    // therefore unreachable there, and the user reopens the app themselves; it is what
+    // relaunches on macOS, where the bundle is swapped in place.
     await relaunch()
   } catch (error) {
     logger.error('Update install failed:', { error: String(error) })

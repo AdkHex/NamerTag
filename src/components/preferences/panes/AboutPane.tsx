@@ -139,7 +139,9 @@ export const AboutPane: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Restart to update?</AlertDialogTitle>
             <AlertDialogDescription>
-              {APP_NAME} will restart to install the update.
+              {APP_NAME} will close to install the update. On Windows the
+              installer replaces files that are in use, so reopen the app once it
+              finishes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

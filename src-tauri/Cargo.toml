@@ -1,6 +1,6 @@
 [package]
 name = "rskv"
-version = "1.8.0"
+version = "1.8.1"
 description = "NameTagger by Ionicboy"
 authors = ["vo1x"]
 edition = "2021"
