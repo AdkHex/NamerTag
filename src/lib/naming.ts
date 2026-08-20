@@ -13,6 +13,7 @@ import {
   parseReleaseGroup,
   parseSeasonEpisode,
   parseTitleYear,
+  resolveAudioAtmos,
 } from '@/lib/naming-engine'
 
 export type PrintTypeOverride = 'BluRay' | 'WEB-DL' | ''
@@ -264,7 +265,8 @@ function buildVideoTitle(
 function buildAudioTitle(
   stream: MediaAnalysis['audio'][number],
   tag: string,
-  template: string
+  template: string,
+  atmosOverride?: boolean
 ) {
   const language =
     stream.language.name ||
@@ -275,13 +277,22 @@ function buildAudioTitle(
     stream.codec.name,
     stream.codec.profile ?? stream.codec.long_name
   )
-  const codec =
-    stream.flags.atmos && codecBase ? `${codecBase} Atmos` : codecBase
+  const codec = codecBase
   // Shared normalizer: count-first, so 6ch reads "5.1" rather than a raw layout string.
-  const channels = normalizeChannels(
+  const channelLayout = normalizeChannels(
     stream.channels.count,
     stream.channels.layout
   )
+  // Atmos rides with the channel layout, not the codec, so the template's
+  // "{audioCodec} {audioChannels}" renders "TrueHD 7.1 Atmos" — the conventional order,
+  // and the same one the filename builders use. Attaching it to the codec instead put it
+  // before the layout ("TrueHD Atmos 7.1"). Templates are user-editable and persisted, so
+  // fixing the order here rather than in the default template also repairs saved ones.
+  // atmosOverride carries the engine's resolved flag (stream flag OR the filename
+  // fallback), so the title agrees with the filename when ffprobe missed Atmos.
+  const isAtmos = atmosOverride ?? stream.flags.atmos
+  const channels =
+    isAtmos && channelLayout ? `${channelLayout} Atmos` : channelLayout
   const bitrate = formatBitrate(stream.bitrate)
   const sampleRate = formatSampleRate(stream.sample_rate)
   const rendered = applyTemplate(template, {
@@ -450,6 +461,13 @@ export function buildGeneratedNameDraft(
     )
   )
 
+  // Atmos resolved the same way the filename resolves it (stream flag, else the filename
+  // fallback), so an embedded title never disagrees with the name on disk.
+  const atmosByStream = resolveAudioAtmos(analysis, {
+    audioCodecOverrides: preferences?.audioCodecOverrides,
+    languageOverrides: preferences?.languageOverrides,
+  })
+
   // Embedded container title: "Title (Year) SxxExx - Downloaded From <tag>" (the tag is
   // the selected track tag). The custom video-title template is opt-in via legacy toggle.
   const containerTitle = preferences?.legacyContainerTitle
@@ -469,8 +487,8 @@ export function buildGeneratedNameDraft(
         printTypeOverride
       ),
     ].filter(Boolean),
-    audioTitles: analysis.audio.map(stream =>
-      buildAudioTitle(stream, trackTag, audioTrackTemplate)
+    audioTitles: analysis.audio.map((stream, index) =>
+      buildAudioTitle(stream, trackTag, audioTrackTemplate, atmosByStream[index])
     ),
     subtitleTitles: analysis.subtitles.map(stream =>
       buildSubtitleTitle(stream, trackTag, subtitleTrackTemplate)

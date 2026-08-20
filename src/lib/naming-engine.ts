@@ -340,6 +340,95 @@ function resolutionFromFilename(filename: string): string {
 
 // ---- adapter --------------------------------------------------------------------------
 
+/**
+ * Build the audio parts in the analysis's own stream order, resolving Atmos.
+ *
+ * Atmos stated in the filename (e.g. "...TrueHD.7.1.Atmos.REMUX-GRP") backs up the stream
+ * flags per the fallback priority (ffprobe -> tags -> filename): ffprobe often cannot see
+ * Atmos, and retagging overwrites the track title it would otherwise be read from. It is
+ * applied only to the highest-object-capable track so a 2.0 commentary never inherits it.
+ *
+ * Kept separate from `toParsedMedia` (which returns the *reordered* list) so track-title
+ * builders can map the resolved flags back onto `analysis.audio` by index.
+ */
+function buildAudioParts(
+  analysis: MediaAnalysis,
+  filename: string,
+  options: NamingOptions
+): AudioPart[] {
+  const audio: AudioPart[] = analysis.audio.map(stream => ({
+    language: normalizeLanguage(
+      stream.language.name,
+      stream.language.code,
+      options.languageOverrides
+    ),
+    langCode: (stream.language.code || '').toLowerCase().split('-')[0] ?? '',
+    codec: mapAudioCodec(
+      stream.codec.name,
+      stream.codec.profile ?? stream.codec.long_name,
+      options.audioCodecOverrides
+    ),
+    channels: normalizeChannels(stream.channels.count, stream.channels.layout),
+    atmos: stream.flags.atmos,
+    commentary: stream.flags.commentary ?? false,
+  }))
+
+  const filenameAtmos = /\batmos\b/i.test(filename)
+  if (filenameAtmos && !audio.some(a => a.atmos)) {
+    // Pick the track the filename is actually describing. Scene names state the codec and
+    // channel layout alongside Atmos ("TrueHD.7.1.Atmos"), so match those first and fall
+    // back to the widest Atmos-capable track. Commentary tracks are never eligible.
+    const ATMOS_CODECS = ['TrueHD', 'DDP']
+    const namedCodec = /\btrue[\s._-]?hd\b/i.test(filename)
+      ? 'TrueHD'
+      : /\b(ddp|dd\+|eac3|e-ac-3)\b/i.test(filename)
+        ? 'DDP'
+        : ''
+    const namedChannels = filename.match(/\b(\d)[._](\d)\b/)
+    const namedLayout = namedChannels
+      ? `${namedChannels[1]}.${namedChannels[2]}`
+      : ''
+
+    // When the filename names a codec, only that codec is eligible. Otherwise any
+    // Atmos-capable track is. This stops "TrueHD...Atmos" from tagging a DDP track when
+    // the TrueHD track is missing or was mis-probed.
+    const eligible = audio.filter(
+      part =>
+        !part.commentary &&
+        ATMOS_CODECS.includes(part.codec) &&
+        (!namedCodec || part.codec === namedCodec)
+    )
+    const score = (part: AudioPart) => {
+      // Codec match is the strongest signal, then the stated channel layout.
+      let value = 0
+      if (namedCodec && part.codec === namedCodec) value += 4
+      if (namedLayout && part.channels === namedLayout) value += 2
+      value += (Number.parseFloat(part.channels) || 0) / 100
+      return value
+    }
+    const best = eligible.reduce<AudioPart | undefined>(
+      (winner, part) =>
+        !winner || score(part) > score(winner) ? part : winner,
+      undefined
+    )
+    if (best) best.atmos = true
+  }
+
+  return audio
+}
+
+/**
+ * Per-stream Atmos, in `analysis.audio` order, with the filename fallback applied — so an
+ * embedded track title can state Atmos on exactly the track the filename credits it to.
+ */
+export function resolveAudioAtmos(
+  analysis: MediaAnalysis,
+  options: NamingOptions = {}
+): boolean[] {
+  const filename = analysis.general.file.filename || ''
+  return buildAudioParts(analysis, filename, options).map(part => part.atmos)
+}
+
 export function toParsedMedia(
   analysis: MediaAnalysis,
   options: NamingOptions = {}
@@ -398,69 +487,7 @@ export function toParsedMedia(
     options.videoCodecOverrides
   )
 
-  // Atmos stated in the filename (e.g. "...TrueHD.7.1.Atmos.REMUX-GRP"). Per the fallback
-  // priority (ffprobe -> tags -> filename), this backs up the stream flags: ffprobe often
-  // cannot see Atmos, and retagging overwrites the track title it would otherwise be read
-  // from. Applied only to the highest-object-capable track so a 2.0 commentary never
-  // inherits it.
-  const filenameAtmos = /\batmos\b/i.test(filename)
-
-  const audio: AudioPart[] = analysis.audio.map(stream => ({
-    language: normalizeLanguage(
-      stream.language.name,
-      stream.language.code,
-      options.languageOverrides
-    ),
-    langCode: (stream.language.code || '').toLowerCase().split('-')[0] ?? '',
-    codec: mapAudioCodec(
-      stream.codec.name,
-      stream.codec.profile ?? stream.codec.long_name,
-      options.audioCodecOverrides
-    ),
-    channels: normalizeChannels(stream.channels.count, stream.channels.layout),
-    atmos: stream.flags.atmos,
-    commentary: stream.flags.commentary ?? false,
-  }))
-
-  if (filenameAtmos && !audio.some(a => a.atmos)) {
-    // Pick the track the filename is actually describing. Scene names state the codec and
-    // channel layout alongside Atmos ("TrueHD.7.1.Atmos"), so match those first and fall
-    // back to the widest Atmos-capable track. Commentary tracks are never eligible.
-    const ATMOS_CODECS = ['TrueHD', 'DDP']
-    const namedCodec = /\btrue[\s._-]?hd\b/i.test(filename)
-      ? 'TrueHD'
-      : /\b(ddp|dd\+|eac3|e-ac-3)\b/i.test(filename)
-        ? 'DDP'
-        : ''
-    const namedChannels = filename.match(/\b(\d)[._](\d)\b/)
-    const namedLayout = namedChannels
-      ? `${namedChannels[1]}.${namedChannels[2]}`
-      : ''
-
-    // When the filename names a codec, only that codec is eligible. Otherwise any
-    // Atmos-capable track is. This stops "TrueHD...Atmos" from tagging a DDP track when
-    // the TrueHD track is missing or was mis-probed.
-    const eligible = audio.filter(
-      part =>
-        !part.commentary &&
-        ATMOS_CODECS.includes(part.codec) &&
-        (!namedCodec || part.codec === namedCodec)
-    )
-    const score = (part: AudioPart) => {
-      // Codec match is the strongest signal, then the stated channel layout.
-      let value = 0
-      if (namedCodec && part.codec === namedCodec) value += 4
-      if (namedLayout && part.channels === namedLayout) value += 2
-      value += (Number.parseFloat(part.channels) || 0) / 100
-      return value
-    }
-    const best = eligible.reduce<AudioPart | undefined>(
-      (winner, part) =>
-        !winner || score(part) > score(winner) ? part : winner,
-      undefined
-    )
-    if (best) best.atmos = true
-  }
+  const audio = buildAudioParts(analysis, filename, options)
 
   const orderedAudio = orderAudio(
     audio,

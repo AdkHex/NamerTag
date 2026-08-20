@@ -771,7 +771,7 @@ describe('NO_TAG (tagging turned off)', () => {
       tags: ['4kHDHub.com'],
       selectedTag: NO_TAG,
     })
-    expect(draft.audioTitles[0]).toBe('Hindi / DDP Atmos 5.1 / 48 kHz')
+    expect(draft.audioTitles[0]).toBe('Hindi / DDP 5.1 Atmos / 48 kHz')
     expect(draft.audioTitles[0]).not.toContain('4kHDHub.com')
     expect(draft.audioTitles[0]?.trim().endsWith('/')).toBe(false)
   })
@@ -816,5 +816,72 @@ describe('default naming mode', () => {
     // Muxed renders with spaces; the auto default would have dotted this single-audio file.
     expect(draft.generatedName).toContain(' ')
     expect(draft.generatedName).toMatch(/\(\d{4}\)/)
+  })
+})
+
+describe('Atmos in track titles', () => {
+  it('places Atmos after the channel layout, matching the filename', () => {
+    const analysis = makeAnalysis({
+      path: '/m/Movie.2020.2160p.BluRay.TrueHD.7.1.Atmos.x265-G.mkv',
+      videoCodec: 'hevc',
+      height: 2160,
+      transfer: 'smpte2084',
+      bitDepth: 10,
+      audios: [{ codec: 'truehd', channels: 8, lang: 'eng', atmos: true }],
+    })
+    const draft = buildGeneratedNameDraft(analysis, defaultPreferences)
+    expect(draft.audioTitles[0]).toContain('TrueHD 7.1 Atmos')
+    expect(draft.audioTitles[0]).not.toContain('TrueHD Atmos')
+    // The name on disk states it the same way.
+    expect(draft.generatedName).toContain('TrueHD 7.1 Atmos')
+  })
+
+  it('applies the filename Atmos fallback when ffprobe missed it', () => {
+    // ffprobe frequently cannot see Atmos, so the flag is false while the name says it.
+    const analysis = makeAnalysis({
+      path: '/m/Movie.2020.1080p.BluRay.TrueHD.7.1.Atmos.x264-G.mkv',
+      videoCodec: 'h264',
+      height: 1080,
+      transfer: 'bt709',
+      audios: [{ codec: 'truehd', channels: 8, lang: 'eng', atmos: false }],
+    })
+    const draft = buildGeneratedNameDraft(analysis, defaultPreferences)
+    expect(draft.audioTitles[0]).toContain('TrueHD 7.1 Atmos')
+    expect(draft.generatedName).toContain('TrueHD 7.1 Atmos')
+  })
+
+  it('never gives a commentary track the filename Atmos', () => {
+    const analysis = makeAnalysis({
+      path: '/m/Movie.2020.1080p.BluRay.TrueHD.7.1.Atmos.x264-G.mkv',
+      videoCodec: 'h264',
+      height: 1080,
+      transfer: 'bt709',
+      audios: [
+        { codec: 'truehd', channels: 8, lang: 'eng', atmos: false },
+        {
+          codec: 'ac3',
+          channels: 2,
+          lang: 'eng',
+          commentary: true,
+          title: 'Director commentary',
+        },
+      ],
+    })
+    const draft = buildGeneratedNameDraft(analysis, defaultPreferences)
+    expect(draft.audioTitles[0]).toContain('TrueHD 7.1 Atmos')
+    expect(draft.audioTitles[1]).not.toContain('Atmos')
+  })
+
+  it('leaves a non-Atmos track untouched', () => {
+    const analysis = makeAnalysis({
+      path: '/m/Movie.2020.1080p.BluRay.DDP.5.1.x264-G.mkv',
+      videoCodec: 'h264',
+      height: 1080,
+      transfer: 'bt709',
+      audios: [{ codec: 'eac3', channels: 6, lang: 'eng' }],
+    })
+    const draft = buildGeneratedNameDraft(analysis, defaultPreferences)
+    expect(draft.audioTitles[0]).toContain('DDP 5.1')
+    expect(draft.audioTitles[0]).not.toContain('Atmos')
   })
 })
