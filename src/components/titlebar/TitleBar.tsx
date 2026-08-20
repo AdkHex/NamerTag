@@ -23,13 +23,14 @@ import {
 } from '@tabler/icons-react'
 import { installUpdate } from '@/lib/updater'
 import { useQueueActions } from '@/components/upload/useQueueActions'
+import { APP_ATTRIBUTION, APP_NAME } from '@/lib/app-info'
 
 interface TitleBarProps {
   className?: string
   title?: string
 }
 
-export function TitleBar({ className, title = 'RsKv' }: TitleBarProps) {
+export function TitleBar({ className, title = APP_NAME }: TitleBarProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const {
     leftSidebarVisible,
@@ -56,9 +57,13 @@ export function TitleBar({ className, title = 'RsKv' }: TitleBarProps) {
         {platformName === 'macos' ? <MacOSWindowControls /> : null}
       </div>
 
-      {/* Center - Title */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+      {/* Center - Title. The attribution sits on the same baseline in smaller, dimmer
+          type so it reads as a subtitle rather than part of the product name. */}
+      <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-baseline gap-1.5">
         <span className="text-sm font-medium text-foreground/80">{title}</span>
+        <span className="text-[10px] font-normal tracking-wide text-foreground/45">
+          {APP_ATTRIBUTION}
+        </span>
       </div>
 
       {/* Right side - Actions */}
@@ -130,7 +135,7 @@ export function TitleBar({ className, title = 'RsKv' }: TitleBarProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Restart to update?</AlertDialogTitle>
             <AlertDialogDescription>
-              RsKv will restart to install the update.
+              {APP_NAME} will restart to install the update.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

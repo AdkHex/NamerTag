@@ -1,7 +1,7 @@
 [package]
 name = "rskv"
-version = "1.7.1"
-description = "NamerTag"
+version = "1.8.0"
+description = "NameTagger by Ionicboy"
 authors = ["vo1x"]
 edition = "2021"
 

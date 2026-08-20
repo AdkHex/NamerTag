@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { checkForUpdates, installUpdate } from '@/lib/updater'
+import { APP_ATTRIBUTION, APP_NAME } from '@/lib/app-info'
 import { useUIStore } from '@/store/ui-store'
 import { usePreferences, useSavePreferences } from '@/services/preferences'
 
@@ -47,7 +48,12 @@ export const AboutPane: React.FC = () => {
         <Separator className="mt-2" />
       </div>
       <div className="space-y-1">
-        <p className="text-sm text-foreground">RsKv</p>
+        <p className="flex items-baseline gap-1.5 text-sm text-foreground">
+          {APP_NAME}
+          <span className="text-[10px] tracking-wide text-muted-foreground">
+            {APP_ATTRIBUTION}
+          </span>
+        </p>
         <p className="text-sm text-muted-foreground">Version {appVersion}</p>
       </div>
       <div className="space-y-2">
@@ -133,7 +139,7 @@ export const AboutPane: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Restart to update?</AlertDialogTitle>
             <AlertDialogDescription>
-              RsKv will restart to install the update.
+              {APP_NAME} will restart to install the update.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

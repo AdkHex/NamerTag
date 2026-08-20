@@ -4,6 +4,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { useUIStore } from '@/store/ui-store'
 import { logger } from '@/lib/logger'
 import { checkForUpdates } from '@/lib/updater'
+import { APP_FULL_NAME } from '@/lib/app-info'
 
 function isTextInputTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false
@@ -68,7 +69,7 @@ export function useMainWindowEventListeners() {
           logger.debug('About menu event received')
           const appVersion = await getVersion()
           alert(
-            `RsKv\n\nVersion: ${appVersion}\n\nBuilt with Tauri v2 + React + TypeScript`
+            `${APP_FULL_NAME}\n\nVersion: ${appVersion}\n\nBuilt with Tauri v2 + React + TypeScript`
           )
         }),
 
