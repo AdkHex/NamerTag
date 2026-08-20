@@ -634,14 +634,58 @@ export function buildMuxedFilename(m: ParsedMedia): string {
     .trim()
 }
 
+/**
+ * Audio tokens for a VOD (dotted) name: one track per language, hyphen-joined.
+ *
+ * A release that ships Hindi and Korean is describing two offerings, so both belong in the
+ * name ("Hindi.DDP.2.0-Korean.DDP.2.0"). Two tracks of the SAME language are alternate
+ * encodes of one offering, not two, so only the best is named — a 5.1 original plus a 2.0
+ * downmix reads as "English.DDP.5.1", never "English.DDP.5.1-English.AAC.2.0".
+ *
+ * "Best" is the widest channel layout, tie-broken by Atmos and then by original stream
+ * order, so the track the release leads with wins a genuine tie.
+ */
+export function buildVodAudioTokens(audio: AudioPart[]): string[] {
+  const bestByLanguage = new Map<string, AudioPart>()
+  const order: string[] = []
+  audio.forEach(part => {
+    // Untagged tracks have no language to group on; key them by position so each survives.
+    const key = part.langCode || part.language || `__untagged_${order.length}`
+    const current = bestByLanguage.get(key)
+    if (!current) {
+      bestByLanguage.set(key, part)
+      order.push(key)
+      return
+    }
+    const channelsOf = (p: AudioPart) => Number.parseFloat(p.channels) || 0
+    const better =
+      channelsOf(part) !== channelsOf(current)
+        ? channelsOf(part) > channelsOf(current)
+        : part.atmos && !current.atmos
+    if (better) bestByLanguage.set(key, part)
+  })
+
+  return order.flatMap((key, index) => {
+    const part = bestByLanguage.get(key)
+    if (!part) return []
+    const tokens = [
+      part.language,
+      part.codec,
+      part.channels,
+      part.atmos ? 'Atmos' : '',
+    ].filter(Boolean)
+    if (tokens.length === 0) return []
+    // Languages are hyphen-joined; the caller dot-joins everything else.
+    const rendered = tokens.join('.').replace(/\s+/g, '.')
+    return [index === 0 ? rendered : `-${rendered}`]
+  })
+}
+
 export function buildVodFilename(m: ParsedMedia): string {
   const isWeb = m.source === 'WEB-DL' || m.source === 'WEBRip'
-  // Never let a commentary track become the single audio track named in a VOD filename.
-  const a = mainAudio(m.audio)[0]
   const codec = m.isRemux ? m.videoFormat : m.videoFinal
-  const audioTokens = a
-    ? [a.language, a.codec, a.channels, a.atmos ? 'Atmos' : '']
-    : []
+  // Commentary tracks are never named in a VOD filename.
+  const audioTokens = buildVodAudioTokens(mainAudio(m.audio))
   const tokens = [
     m.title,
     m.year,
@@ -657,7 +701,9 @@ export function buildVodFilename(m: ParsedMedia): string {
   ]
     .filter(Boolean)
     .map(token => String(token).replace(/\s+/g, '.'))
-  const base = tokens.join('.')
+  // Additional-language tokens carry their own leading hyphen, so drop the dot the join
+  // would otherwise put in front of it ("...DDP.2.0.-Korean" -> "...DDP.2.0-Korean").
+  const base = tokens.join('.').replace(/\.-/g, '-')
   return m.group ? `${base}-${m.group}` : base
 }
 

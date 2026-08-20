@@ -885,3 +885,79 @@ describe('Atmos in track titles', () => {
     expect(draft.audioTitles[0]).not.toContain('Atmos')
   })
 })
+
+describe('VOD audio: one track per language', () => {
+  const base = { videoCodec: 'h264', height: 1080, transfer: 'bt709' } as const
+  const vod = { mode: 'vod' as const }
+  const name = (audios: Parameters<typeof makeAnalysis>[0]['audios']) =>
+    buildOnDiskName(
+      makeAnalysis({
+        path: '/m/Movie.2020.1080p.WEB-DL.x264-G.mkv',
+        ...base,
+        audios,
+      }),
+      vod
+    )
+
+  it('names every distinct language, hyphen-joined', () => {
+    // Two languages are two offerings; both belong in the name.
+    expect(name([
+      { codec: 'eac3', channels: 2, lang: 'hin' },
+      { codec: 'eac3', channels: 2, lang: 'kor' },
+    ])).toContain('Hindi.DDP.2.0-Korean.DDP.2.0')
+  })
+
+  it('keeps only the best track when a language repeats', () => {
+    // A 5.1 original plus a 2.0 downmix is one offering, not two.
+    const generated = name([
+      { codec: 'eac3', channels: 6, lang: 'eng' },
+      { codec: 'aac', channels: 2, lang: 'eng' },
+    ])
+    expect(generated).toContain('English.DDP.5.1')
+    expect(generated).not.toContain('AAC')
+    expect(generated).not.toContain('English.DDP.5.1-English')
+  })
+
+  it('picks the best track regardless of stream order', () => {
+    expect(
+      name([
+        { codec: 'aac', channels: 2, lang: 'eng' },
+        { codec: 'eac3', channels: 6, lang: 'eng' },
+      ])
+    ).toContain('English.DDP.5.1')
+  })
+
+  it('breaks an equal-channel tie on Atmos', () => {
+    expect(
+      name([
+        { codec: 'eac3', channels: 8, lang: 'eng' },
+        { codec: 'truehd', channels: 8, lang: 'eng', atmos: true },
+      ])
+    ).toContain('English.TrueHD.7.1.Atmos')
+  })
+
+  it('still excludes commentary tracks', () => {
+    const generated = name([
+      { codec: 'eac3', channels: 6, lang: 'eng' },
+      {
+        codec: 'ac3',
+        channels: 2,
+        lang: 'eng',
+        commentary: true,
+        title: 'Commentary',
+      },
+    ])
+    expect(generated).toContain('English.DDP.5.1')
+    expect(generated).not.toContain('DD.2.0')
+  })
+
+  it('does not merge untagged tracks into one another', () => {
+    // No language to group on, so neither track may swallow the other.
+    expect(
+      name([
+        { codec: 'eac3', channels: 6 },
+        { codec: 'aac', channels: 2 },
+      ])
+    ).toContain('DDP.5.1-AAC.2.0')
+  })
+})
